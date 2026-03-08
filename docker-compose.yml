@@ -1,0 +1,66 @@
+# AI Layer Docker Compose
+# Chạy sau khi backend đã chạy trên port 9000
+#
+# Lần đầu hoặc khi đổi dependency (pyproject.toml):
+#   docker compose up --build
+#
+# Khi chỉ đổi code Python:
+#   docker compose restart <service>
+#   hoặc: docker compose restart orchestrator
+
+services:
+  search-agent:
+    build: .
+    command: python -m agents.search.main
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      - BACKEND_BASE_URL=http://host.docker.internal:9000
+      - SEARCH_AGENT_PORT=8001
+      - SEARCH_AGENT_HOST=http://search-agent
+    volumes:
+      - .:/app
+
+  stylist-agent:
+    build: .
+    command: python -m agents.stylist.main
+    ports:
+      - "8002:8002"
+    env_file: .env
+    environment:
+      - BACKEND_BASE_URL=http://host.docker.internal:9000
+      - STYLIST_AGENT_PORT=8002
+      - STYLIST_AGENT_HOST=http://stylist-agent
+    volumes:
+      - .:/app
+
+  order-agent:
+    build: .
+    command: python -m agents.order.main
+    ports:
+      - "8003:8003"
+    env_file: .env
+    environment:
+      - BACKEND_BASE_URL=http://host.docker.internal:9000
+      - ORDER_AGENT_PORT=8003
+      - ORDER_AGENT_HOST=http://order-agent
+    volumes:
+      - .:/app
+
+  orchestrator:
+    build: .
+    command: python -m agents.orchestrator.main
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - ORCHESTRATOR_SEARCH_AGENT_CARD_URL=http://search-agent:8001/.well-known/agent.json
+      - ORCHESTRATOR_STYLIST_AGENT_CARD_URL=http://stylist-agent:8002/.well-known/agent.json
+      - ORCHESTRATOR_ORDER_AGENT_CARD_URL=http://order-agent:8003/.well-known/agent.json
+    depends_on:
+      - search-agent
+      - stylist-agent
+      - order-agent
+    volumes:
+      - .:/app
