@@ -8,7 +8,7 @@ Tools:
 """
 import structlog
 
-from agents.base.skill import Skill, ToolDefinition, ToolResult
+from shared.base.skill import Skill, ToolDefinition, ToolResult
 from shared.backend_client import BackendClient
 
 logger = structlog.get_logger()

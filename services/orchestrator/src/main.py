@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from shared.models.agent import ChatRequest, ChatResponse
 from shared.logging_config import setup_logging
-from agents.orchestrator.conversation import ConversationManager
-from agents.orchestrator.routing_agent import RoutingAgent
+from services.orchestrator.src.conversation import ConversationManager
+from services.orchestrator.src.routing_agent import RoutingAgent
 
 logger = structlog.get_logger()
 
@@ -20,10 +20,6 @@ conversation_mgr = ConversationManager(
 
 
 def _parse_base_url(card_url: str) -> str:
-    """Extract base agent URL from agent-card URL.
-
-    e.g. http://search-agent:8001/.well-known/agent.json → http://search-agent:8001
-    """
     if "/.well-known/" in card_url:
         return card_url.rsplit("/.well-known/", 1)[0]
     return card_url
@@ -34,9 +30,9 @@ async def lifespan(app: FastAPI):
     global routing_agent
 
     agent_card_urls = [
-        os.getenv("ORCHESTRATOR_SEARCH_AGENT_CARD_URL", "http://localhost:8001/.well-known/agent.json"),
-        os.getenv("ORCHESTRATOR_STYLIST_AGENT_CARD_URL", "http://localhost:8002/.well-known/agent.json"),
-        os.getenv("ORCHESTRATOR_ORDER_AGENT_CARD_URL", "http://localhost:8003/.well-known/agent.json"),
+        os.getenv("ORCHESTRATOR_SEARCH_AGENT_CARD_URL", "http://search:8001/.well-known/agent.json"),
+        os.getenv("ORCHESTRATOR_STYLIST_AGENT_CARD_URL", "http://stylist:8002/.well-known/agent.json"),
+        os.getenv("ORCHESTRATOR_ORDER_AGENT_CARD_URL", "http://order:8003/.well-known/agent.json"),
     ]
     agent_base_urls = [_parse_base_url(u) for u in agent_card_urls]
 
@@ -75,7 +71,7 @@ async def chat(request: ChatRequest):
         result = await routing_agent.run(
             user_message=request.message,
             user_id=request.user_id,
-            conversation_history=history[:-1],  # exclude the message we just added
+            conversation_history=history[:-1],
         )
         conversation_mgr.add_message(request.user_id, "assistant", result["response"])
         return ChatResponse(

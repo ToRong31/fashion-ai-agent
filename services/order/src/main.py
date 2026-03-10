@@ -11,8 +11,8 @@ from openai import AsyncOpenAI
 from shared.config import BackendSettings, LLMSettings
 from shared.backend_client import BackendClient
 from shared.logging_config import setup_logging
-from agents.base.executor import SkillBasedExecutor
-from agents.order.agent import build_order_agent
+from shared.base.executor import SkillBasedExecutor
+from order.src.agent import build_order_agent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

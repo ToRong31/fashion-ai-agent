@@ -1,66 +1,74 @@
-# AI Layer Docker Compose
-# Chạy sau khi backend đã chạy trên port 9000
-#
-# Lần đầu hoặc khi đổi dependency (pyproject.toml):
-#   docker compose up --build
-#
-# Khi chỉ đổi code Python:
-#   docker compose restart <service>
-#   hoặc: docker compose restart orchestrator
+# AI Layer Docker Compose - Microservices Architecture
 
 services:
-  search-agent:
-    build: .
-    command: python -m agents.search.main
+  search:
+    build: ./services/search
     ports:
       - "8001:8001"
     env_file: .env
     environment:
       - BACKEND_BASE_URL=http://host.docker.internal:9000
       - SEARCH_AGENT_PORT=8001
-      - SEARCH_AGENT_HOST=http://search-agent
-    volumes:
-      - .:/app
+      - SEARCH_AGENT_HOST=http://search
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8001/.well-known/agent.json || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  stylist-agent:
-    build: .
-    command: python -m agents.stylist.main
+  stylist:
+    build: ./services/stylist
     ports:
       - "8002:8002"
     env_file: .env
     environment:
       - BACKEND_BASE_URL=http://host.docker.internal:9000
       - STYLIST_AGENT_PORT=8002
-      - STYLIST_AGENT_HOST=http://stylist-agent
-    volumes:
-      - .:/app
+      - STYLIST_AGENT_HOST=http://stylist
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8002/.well-known/agent.json || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  order-agent:
-    build: .
-    command: python -m agents.order.main
+  order:
+    build: ./services/order
     ports:
       - "8003:8003"
     env_file: .env
     environment:
       - BACKEND_BASE_URL=http://host.docker.internal:9000
       - ORDER_AGENT_PORT=8003
-      - ORDER_AGENT_HOST=http://order-agent
-    volumes:
-      - .:/app
+      - ORDER_AGENT_HOST=http://order
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8003/.well-known/agent.json || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   orchestrator:
-    build: .
-    command: python -m agents.orchestrator.main
+    build: ./services/orchestrator
     ports:
       - "8000:8000"
     env_file: .env
     environment:
-      - ORCHESTRATOR_SEARCH_AGENT_CARD_URL=http://search-agent:8001/.well-known/agent.json
-      - ORCHESTRATOR_STYLIST_AGENT_CARD_URL=http://stylist-agent:8002/.well-known/agent.json
-      - ORCHESTRATOR_ORDER_AGENT_CARD_URL=http://order-agent:8003/.well-known/agent.json
+      - ORCHESTRATOR_SEARCH_AGENT_CARD_URL=http://search:8001/.well-known/agent.json
+      - ORCHESTRATOR_STYLIST_AGENT_CARD_URL=http://stylist:8002/.well-known/agent.json
+      - ORCHESTRATOR_ORDER_AGENT_CARD_URL=http://order:8003/.well-known/agent.json
+      - ORCHESTRATOR_PORT=8000
     depends_on:
-      - search-agent
-      - stylist-agent
-      - order-agent
-    volumes:
-      - .:/app
+      search:
+        condition: service_healthy
+      stylist:
+        condition: service_healthy
+      order:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

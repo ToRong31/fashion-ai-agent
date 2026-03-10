@@ -1,6 +1,6 @@
 """Stylist Agent — AI fashion stylist for outfit recommendations."""
-from agents.base.agent import BaseAgent
-from agents.stylist.skills.outfit_recommendation import OutfitRecommendationSkill
+from shared.base.agent import BaseAgent
+from stylist.src.skills.outfit_recommendation import OutfitRecommendationSkill
 from shared.backend_client import BackendClient
 
 

@@ -11,25 +11,25 @@ from openai import AsyncOpenAI
 from shared.config import BackendSettings, LLMSettings
 from shared.backend_client import BackendClient
 from shared.logging_config import setup_logging
-from agents.base.executor import SkillBasedExecutor
-from agents.search.agent import build_search_agent
+from shared.base.executor import SkillBasedExecutor
+from stylist.src.agent import build_stylist_agent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def main():
-    port = int(os.getenv("SEARCH_AGENT_PORT", "8001"))
-    host = os.getenv("SEARCH_AGENT_HOST", "http://localhost")
+    port = int(os.getenv("STYLIST_AGENT_PORT", "8002"))
+    host = os.getenv("STYLIST_AGENT_HOST", "http://localhost")
 
-    setup_logging(log_level=os.getenv("LOG_LEVEL", "INFO"), service_name="search-agent")
+    setup_logging(log_level=os.getenv("LOG_LEVEL", "INFO"), service_name="stylist-agent")
 
     try:
         llm = LLMSettings()
         backend_client = BackendClient(BackendSettings())
         openai_client = AsyncOpenAI(api_key=llm.openai_api_key, base_url=llm.openai_base_url)
 
-        agent = build_search_agent(backend_client)
+        agent = build_stylist_agent(backend_client)
         executor = SkillBasedExecutor(agent, openai_client, model=llm.openai_model)
 
         agent_card = agent.build_agent_card(host=host, port=port)

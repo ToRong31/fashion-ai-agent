@@ -1,6 +1,6 @@
 """Search Agent — product catalog search via semantic vector search."""
-from agents.base.agent import BaseAgent
-from agents.search.skills.product_search import ProductSearchSkill
+from shared.base.agent import BaseAgent
+from search.src.skills.product_search import ProductSearchSkill
 from shared.backend_client import BackendClient
 
 

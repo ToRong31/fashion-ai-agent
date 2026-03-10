@@ -1,6 +1,6 @@
 """Order Agent — shopping cart, order creation, and payment."""
-from agents.base.agent import BaseAgent
-from agents.order.skills.order_processing import OrderProcessingSkill
+from shared.base.agent import BaseAgent
+from order.src.skills.order_processing import OrderProcessingSkill
 from shared.backend_client import BackendClient
 
 
