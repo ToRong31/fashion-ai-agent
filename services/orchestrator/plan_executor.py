@@ -244,6 +244,8 @@ class PlanExecutor:
         For sequential workflows, this passes product info from Search Agent
         to Order Agent. Supports single and multi-product operations.
         """
+        import json
+
         task = step.task
 
         # First, check if step has context with products (from planning)
@@ -254,11 +256,29 @@ class PlanExecutor:
             if products and len(products) > 0:
                 # Format all products for the task
                 product_info = self._format_products_for_task(products)
-                task = task + f"\n\nProducts to use:\n{product_info}\n\nProduct IDs: {product_ids}"
 
-                # Mark as multi-product if needed
+                # Build products JSON for add_multiple_to_cart tool
+                products_json = json.dumps([
+                    {
+                        "product_id": p.get("id"),
+                        "product_name": p.get("name"),
+                        "price": p.get("price"),
+                    }
+                    for p in products if p.get("id")
+                ])
+
                 if len(product_ids) > 1:
-                    task = task + f"\n\nIMPORTANT: Add ALL {len(product_ids)} products to cart/order."
+                    # Multi-product: use add_multiple_to_cart
+                    task = task + f"""\n\nProducts to add:
+{product_info}
+
+Product IDs: {product_ids}
+
+IMPORTANT: Use add_multiple_to_cart tool with this exact products list:
+{products_json}"""
+                else:
+                    # Single product: use add_to_cart
+                    task = task + f"\n\nProduct to add:\n{product_info}\n\nProduct ID: {product_ids[0]}"
 
         # If there are previous results, incorporate them into the task
         elif previous_results:

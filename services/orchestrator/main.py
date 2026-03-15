@@ -10,31 +10,27 @@ from openai import AsyncOpenAI
 from shared.config import LLMSettings
 from shared.models.agent import ChatRequest, ChatResponse
 from shared.logging_config import setup_logging
-from services.orchestrator.conversation import ConversationManager, EnhancedConversationManager, MessageRole
+from services.orchestrator.conversation import ConversationManager, SmartConversationManager, MessageRole
 from services.orchestrator.routing_agent import RoutingAgent
 from services.orchestrator.planning_agent import PlanningAgent, ExecutionMode
 from services.orchestrator.plan_executor import PlanExecutor
-from services.orchestrator.workflow_state import WorkflowStateManager
 
 logger = structlog.get_logger()
 
 routing_agent: RoutingAgent | None = None
 planning_agent: PlanningAgent | None = None
 plan_executor: PlanExecutor | None = None
+
+# Simple conversation manager (for routing agent)
 conversation_mgr = ConversationManager(
     max_history=int(os.getenv("ORCHESTRATOR_MAX_CONVERSATION_HISTORY", "20"))
 )
-enhanced_conversation_mgr = EnhancedConversationManager(
-    max_history=int(os.getenv("ORCHESTRATOR_MAX_CONVERSATION_HISTORY", "20"))
-)
-workflow_mgr = WorkflowStateManager(
-    timeout_seconds=int(os.getenv("ORCHESTRATOR_WORKFLOW_TIMEOUT_SECONDS", "300"))
-)
+
+# Smart conversation manager (for planning - keeps last 3 pairs + summary)
+smart_conversation_mgr = SmartConversationManager()
 
 # Enable multi-agent planning (can be disabled via env var)
 ENABLE_MULTI_AGENT = os.getenv("ORCHESTRATOR_ENABLE_MULTI_AGENT", "true").lower() == "true"
-# Enable context-aware planning (can be disabled via env var)
-ENABLE_CONTEXT_AWARE = os.getenv("ORCHESTRATOR_ENABLE_CONTEXT_AWARE", "true").lower() == "true"
 
 
 def _parse_base_url(card_url: str) -> str:
@@ -48,9 +44,9 @@ async def lifespan(app: FastAPI):
     global routing_agent, planning_agent, plan_executor
 
     agent_card_urls = [
-        os.getenv("ORCHESTRATOR_SEARCH_AGENT_CARD_URL", "http://search:8001/.well-known/agent.json"),
-        os.getenv("ORCHESTRATOR_STYLIST_AGENT_CARD_URL", "http://stylist:8002/.well-known/agent.json"),
-        os.getenv("ORCHESTRATOR_ORDER_AGENT_CARD_URL", "http://order:8003/.well-known/agent.json"),
+        os.getenv("ORCHESTRATOR_SEARCH_AGENT_CARD_URL", "http://search:8001/.well-known/agent-card.json"),
+        os.getenv("ORCHESTRATOR_STYLIST_AGENT_CARD_URL", "http://stylist:8002/.well-known/agent-card.json"),
+        os.getenv("ORCHESTRATOR_ORDER_AGENT_CARD_URL", "http://order:8003/.well-known/agent-card.json"),
     ]
     agent_base_urls = [_parse_base_url(u) for u in agent_card_urls]
 
@@ -106,30 +102,29 @@ async def chat(
 
     logger.info("chat_request", user_id=request.user_id, message=request.message[:100], has_token=bool(token))
 
-    # Add to both conversation managers for compatibility
+    # Add to simple conversation manager (for routing)
     conversation_mgr.add_message(request.user_id, "user", request.message)
     history = conversation_mgr.get_history(request.user_id)
 
-    # Get workflow state for context-aware planning
-    workflow_state = None
-    if ENABLE_CONTEXT_AWARE:
-        workflow_state = workflow_mgr.get_or_create(request.user_id, request.message)
+    # Add to smart conversation manager (for planning)
+    smart_conversation_mgr.add_message(
+        request.user_id,
+        MessageRole.USER,
+        request.message,
+    )
 
     try:
-        # Check if multi-agent planning is enabled and can handle this request
+        # Check if multi-agent planning is enabled
         if ENABLE_MULTI_AGENT and planning_agent and plan_executor:
-            # Get conversation history for context-aware planning
-            conv_history = []
-            if ENABLE_CONTEXT_AWARE:
-                conv_history = enhanced_conversation_mgr.get_history(request.user_id)
+            # Get conversation for planning (includes last 3 pairs + summary)
+            conv_history = smart_conversation_mgr.get_history(request.user_id)
 
-            # Create execution plan with full context
+            # Create execution plan with conversation context
             context = {"user_id": request.user_id, "token": token}
             plan = await planning_agent.create_plan(
                 request.message,
                 context,
                 conversation_history=conv_history,
-                workflow_state=workflow_state,
             )
             logger.info(
                 "execution_plan_created",
@@ -140,7 +135,7 @@ async def chat(
 
             # Execute the plan
             if plan.mode == ExecutionMode.SINGLE:
-                # For single mode, use the existing routing agent for consistency
+                # For single mode, use routing agent
                 result = await routing_agent.run(
                     user_message=request.message,
                     user_id=request.user_id,
@@ -164,33 +159,21 @@ async def chat(
                 token=token,
             )
 
-        # Extract products from result for conversation tracking
+        # Extract products from result
         products = None
         if result.get("data") and "products" in result["data"]:
             products = result["data"]["products"]
 
-        # Update conversation and workflow state
+        # Update conversation managers
         conversation_mgr.add_message(request.user_id, "assistant", result["response"])
 
-        if ENABLE_CONTEXT_AWARE:
-            # Update enhanced conversation with structured data
-            enhanced_conversation_mgr.add_message(
-                request.user_id,
-                MessageRole.USER,
-                request.message,
-            )
-            enhanced_conversation_mgr.add_message(
-                request.user_id,
-                MessageRole.ASSISTANT,
-                result["response"],
-                products=products,
-                agent_used=result.get("agent_used", ""),
-            )
-
-            # Update workflow state with search results
-            if products:
-                workflow_mgr.update_search_results(request.user_id, products)
-                logger.info("workflow_state_updated", user_id=request.user_id, products_count=len(products))
+        smart_conversation_mgr.add_message(
+            request.user_id,
+            MessageRole.ASSISTANT,
+            result["response"],
+            products=products,
+            agent_used=result.get("agent_used", ""),
+        )
 
         return ChatResponse(
             response=result["response"],
@@ -210,7 +193,9 @@ async def health():
 
 @app.get("/conversation/{user_id}")
 async def get_conversation(user_id: str):
-    return {"history": conversation_mgr.get_history(user_id)}
+    # Use smart conversation manager to get history with data
+    history = smart_conversation_mgr.get_history_for_llm(user_id)
+    return {"history": history}
 
 
 if __name__ == "__main__":

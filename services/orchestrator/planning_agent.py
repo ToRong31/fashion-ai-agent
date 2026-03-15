@@ -11,13 +11,12 @@ import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import structlog
 
 if TYPE_CHECKING:
     from services.orchestrator.conversation import Message
-    from services.orchestrator.workflow_state import WorkflowContext
 
 logger = structlog.get_logger()
 
@@ -105,16 +104,17 @@ class PlanningAgent:
         user_message: str,
         context: dict | None = None,
         conversation_history: list["Message"] = None,
-        workflow_state: "WorkflowContext" = None,
     ) -> ExecutionPlan:
         """
-        Analyze request and create execution plan with full context awareness.
+        Analyze request and create execution plan with conversation context.
+
+        The planner uses the conversation history to understand what products
+        the user is referring to (e.g., "add all" = all products from previous search).
 
         Args:
             user_message: The user's input message
             context: Optional context (user_id, token, etc.)
-            conversation_history: Full conversation history with structured data
-            workflow_state: Current workflow state from WorkflowStateManager
+            conversation_history: Conversation history with structured data (products)
 
         Returns:
             ExecutionPlan with mode, steps, and estimated response
@@ -123,21 +123,7 @@ class PlanningAgent:
         conversation_history = conversation_history or []
 
         # Get products from conversation history
-        last_products = self._extract_products_from_history(conversation_history)
-
-        # Get products from workflow state
-        workflow_products = []
-        if workflow_state:
-            workflow_products = workflow_state.last_search_results or []
-
-        # Combine products from both sources
-        all_products = workflow_products or last_products
-
-        # Check for pending confirmation actions
-        if workflow_state and workflow_state.pending_action:
-            return await self._plan_with_pending_action(
-                user_message, workflow_state, context
-            )
+        all_products = self._extract_products_from_history(conversation_history)
 
         # Check if user wants all items and we have products
         if self._wants_all_items(user_message) and all_products:
@@ -269,6 +255,18 @@ class PlanningAgent:
         # Format product info for Order Agent
         product_info = self._format_products_for_order(products)
 
+        # Build the products list as JSON for the tool
+        products_json = json.dumps([
+            {
+                "product_id": p.get("id"),
+                "product_name": p.get("name"),
+                "price": p.get("price"),
+            }
+            for p in products if p.get("id")
+        ])
+
+        user_id = context.get("user_id", 1)
+
         # SEQUENTIAL: Order Agent with all products
         return ExecutionPlan(
             mode=ExecutionMode.SEQUENTIAL,
@@ -276,8 +274,16 @@ class PlanningAgent:
                 ExecutionStep(
                     step_id="1",
                     agent_name="Order Agent",
-                    task=f"Add ALL of these {len(products)} products to cart:\n\n{product_info}\n\nProduct IDs: {product_ids}",
-                    context={"product_ids": product_ids, "all_products": products, "add_all": True},
+                    task=f"""Add ALL {len(products)} products to cart using add_multiple_to_cart tool.
+
+Products to add:
+{product_info}
+
+IMPORTANT: You MUST use the add_multiple_to_cart tool (NOT add_to_cart) with this exact products list:
+{products_json}
+
+Call add_multiple_to_cart with the products list above. [user_id={user_id}]""",
+                    context={"product_ids": product_ids, "all_products": products, "add_all": True, "user_id": user_id},
                 ),
             ],
             estimated_response=f"Added all {len(products)} products to cart",
@@ -293,6 +299,7 @@ class PlanningAgent:
 
         product_ids = [p.get("id") for p in selected_products if p.get("id")]
         product_info = self._format_products_for_order(selected_products)
+        user_id = context.get("user_id", 1)
 
         return ExecutionPlan(
             mode=ExecutionMode.SEQUENTIAL,
@@ -300,8 +307,8 @@ class PlanningAgent:
                 ExecutionStep(
                     step_id="1",
                     agent_name="Order Agent",
-                    task=f"Add these specific products to cart:\n\n{product_info}\n\nProduct IDs: {product_ids}",
-                    context={"product_ids": product_ids, "selected_products": selected_products},
+                    task=f"Add these specific products to cart:\n\n{product_info}\n\nProduct IDs: {product_ids} [user_id={user_id}]",
+                    context={"product_ids": product_ids, "selected_products": selected_products, "user_id": user_id},
                 ),
             ],
             estimated_response=f"Added {len(selected_products)} products to cart",
@@ -317,6 +324,7 @@ class PlanningAgent:
 
         product_ids = [p.get("id") for p in products if p.get("id")]
         product_info = self._format_products_for_order(products)
+        user_id = context.get("user_id", 1)
 
         # Determine action based on message
         if any(kw in user_message.lower() for kw in ["cart", "add", "thêm", "giỏ"]):
@@ -332,60 +340,12 @@ class PlanningAgent:
                 ExecutionStep(
                     step_id="1",
                     agent_name="Order Agent",
-                    task=f"{action.capitalize()} with these products:\n\n{product_info}\n\nProduct IDs: {product_ids}",
-                    context={"product_ids": product_ids, "products": products},
+                    task=f"{action.capitalize()} with these products:\n\n{product_info}\n\nProduct IDs: {product_ids} [user_id={user_id}]",
+                    context={"product_ids": product_ids, "products": products, "user_id": user_id},
                 ),
             ],
             estimated_response=f"{action} completed with {len(products)} products",
         )
-
-    async def _plan_with_pending_action(
-        self,
-        user_message: str,
-        workflow_state: "WorkflowContext",
-        context: dict,
-    ) -> ExecutionPlan:
-        """Plan based on pending action from previous turn."""
-
-        user_id = context.get("user_id", 1)
-
-        # Check if user confirmed or denied
-        lower = user_message.lower()
-        is_confirm = any(kw in lower for kw in ["yes", "ok", "sure", "đúng", "có", "confirm", "đồng ý"])
-        is_deny = any(kw in lower for kw in ["no", "not", "không", "hủy", "cancel", "dừng"])
-
-        if is_deny:
-            # User cancelled, clear pending and do nothing
-            return ExecutionPlan(
-                mode=ExecutionMode.SINGLE,
-                steps=[
-                    ExecutionStep(
-                        step_id="1",
-                        agent_name="Search Agent",
-                        task="Acknowledge cancellation. Ask if user needs help with anything else.",
-                    ),
-                ],
-            )
-
-        if is_confirm or not is_deny:
-            # User confirmed or gave positive response
-            product_ids = workflow_state.pending_product_ids
-
-            if workflow_state.pending_action == "add_to_cart":
-                return ExecutionPlan(
-                    mode=ExecutionMode.SEQUENTIAL,
-                    steps=[
-                        ExecutionStep(
-                            step_id="1",
-                            agent_name="Order Agent",
-                            task=f"Add products {product_ids} to cart. Confirm what was added.",
-                            context={"product_ids": product_ids},
-                        ),
-                    ],
-                )
-
-        # Default: clear pending and re-plan
-        return await self.create_plan(user_message, context)
 
     def _format_products_for_order(self, products: list[dict]) -> str:
         """Format products for Order Agent task."""

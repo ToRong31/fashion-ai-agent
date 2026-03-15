@@ -117,6 +117,33 @@ class BackendClient:
         response.raise_for_status()
         return response.json()
 
+    async def add_to_cart(self, user_id: int, product_id: int, quantity: int = 1) -> dict:
+        """Add a single product to the user's cart."""
+        client = await self._get_client()
+        response = await client.post(
+            "/api/cart/items",
+            json={"user_id": user_id, "product_id": product_id, "quantity": quantity},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def add_multiple_to_cart(self, user_id: int, product_ids: list[int], quantities: list[int] | None = None) -> dict:
+        """Add multiple products to the user's cart (sequential calls)."""
+        import asyncio
+        quantities = quantities or [1] * len(product_ids)
+
+        # Call add_to_cart for each product sequentially
+        results = []
+        for product_id, quantity in zip(product_ids, quantities):
+            try:
+                result = await self.add_to_cart(user_id, product_id, quantity)
+                results.append(result)
+            except Exception as e:
+                logger.warning("add_to_cart_item_failed", product_id=product_id, error=str(e))
+                results.append({"error": str(e), "product_id": product_id})
+
+        return {"status": "added", "items": results, "count": len(results)}
+
     async def close(self):
         if self._client and not self._client.is_closed:
             await self._client.aclose()

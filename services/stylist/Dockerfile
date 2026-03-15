@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -e .
 ENV PYTHONPATH=/app
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget -q --spider http://localhost:8002/.well-known/agent.json || exit 1
+    CMD wget -q --spider http://localhost:8002/.well-known/agent-card.json || exit 1
 
 EXPOSE 8002
 

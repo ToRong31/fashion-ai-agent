@@ -16,7 +16,7 @@ services:
       - ./services/search:/app/services/search
       - ./shared:/app/shared
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8001/.well-known/agent.json || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8001/.well-known/agent-card.json || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -37,7 +37,7 @@ services:
       - ./services/stylist:/app/services/stylist
       - ./shared:/app/shared
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8002/.well-known/agent.json || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8002/.well-known/agent-card.json || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -58,7 +58,7 @@ services:
       - ./services/order:/app/services/order
       - ./shared:/app/shared
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8003/.well-known/agent.json || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8003/.well-known/agent-card.json || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,9 +72,9 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      - ORCHESTRATOR_SEARCH_AGENT_CARD_URL=http://search:8001/.well-known/agent.json
-      - ORCHESTRATOR_STYLIST_AGENT_CARD_URL=http://stylist:8002/.well-known/agent.json
-      - ORCHESTRATOR_ORDER_AGENT_CARD_URL=http://order:8003/.well-known/agent.json
+      - ORCHESTRATOR_SEARCH_AGENT_CARD_URL=http://search:8001/.well-known/agent-card.json
+      - ORCHESTRATOR_STYLIST_AGENT_CARD_URL=http://stylist:8002/.well-known/agent-card.json
+      - ORCHESTRATOR_ORDER_AGENT_CARD_URL=http://order:8003/.well-known/agent-card.json
       - ORCHESTRATOR_PORT=8000
     volumes:
       - ./services/orchestrator:/app/services/orchestrator
