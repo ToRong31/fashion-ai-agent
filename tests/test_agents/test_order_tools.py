@@ -1,12 +1,14 @@
 import pytest
 
-from agents.order.tools import OrderTools
+from services.order.tools.create_order import CreateOrderTool
+from services.order.tools.get_payment_link import GetPaymentLinkTool
+from services.order.tools.search_products import SearchProductsTool
 
 
 @pytest.mark.asyncio
 async def test_create_order(mock_backend_client):
-    tools = OrderTools(mock_backend_client)
-    result = await tools.create_order(user_id=1, product_ids=[1, 5])
+    tool = CreateOrderTool(mock_backend_client)
+    result = await tool.execute({"user_id": 1, "product_ids": [1, 5]}, {})
 
     assert result["id"] == 1
     assert result["status"] == "created"
@@ -15,8 +17,8 @@ async def test_create_order(mock_backend_client):
 
 @pytest.mark.asyncio
 async def test_get_payment_link(mock_backend_client):
-    tools = OrderTools(mock_backend_client)
-    result = await tools.get_payment_link(order_id=1)
+    tool = GetPaymentLinkTool(mock_backend_client)
+    result = await tool.execute({"order_id": 1}, {})
 
     assert "payment_url" in result
     assert "vnpayment" in result["payment_url"]
@@ -25,8 +27,8 @@ async def test_get_payment_link(mock_backend_client):
 
 @pytest.mark.asyncio
 async def test_search_products(mock_backend_client):
-    tools = OrderTools(mock_backend_client)
-    results = await tools.search_products("black jacket")
+    tool = SearchProductsTool(mock_backend_client)
+    results = await tool.execute({"query": "black jacket"}, {})
 
     assert len(results) == 3
     mock_backend_client.vector_search.assert_called_once()

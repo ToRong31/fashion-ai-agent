@@ -1,12 +1,12 @@
 import pytest
 
-from agents.search.tools import SearchTools
+from services.search.tools.search_products import SearchProductsTool
 
 
 @pytest.mark.asyncio
 async def test_search_products_returns_results(mock_backend_client):
-    tools = SearchTools(mock_backend_client)
-    results = await tools.search_products("black jacket")
+    tool = SearchProductsTool(mock_backend_client)
+    results = await tool.execute({"query": "black jacket", "top_k": 5}, {})
 
     assert len(results) == 3
     mock_backend_client.vector_search.assert_called_once_with("black jacket", 5)
@@ -14,8 +14,8 @@ async def test_search_products_returns_results(mock_backend_client):
 
 @pytest.mark.asyncio
 async def test_search_products_custom_top_k(mock_backend_client):
-    tools = SearchTools(mock_backend_client)
-    await tools.search_products("dress", top_k=10)
+    tool = SearchProductsTool(mock_backend_client)
+    await tool.execute({"query": "dress", "top_k": 10}, {})
 
     mock_backend_client.vector_search.assert_called_once_with("dress", 10)
 
@@ -23,7 +23,7 @@ async def test_search_products_custom_top_k(mock_backend_client):
 @pytest.mark.asyncio
 async def test_search_products_propagates_error(mock_backend_client):
     mock_backend_client.vector_search.side_effect = Exception("Connection failed")
-    tools = SearchTools(mock_backend_client)
+    tool = SearchProductsTool(mock_backend_client)
 
     with pytest.raises(Exception, match="Connection failed"):
-        await tools.search_products("jacket")
+        await tool.execute({"query": "jacket"}, {})

@@ -1,4 +1,4 @@
-from agents.orchestrator.router import classify_intent
+from services.orchestrator.router import classify_intent
 
 
 def test_search_intent_find():

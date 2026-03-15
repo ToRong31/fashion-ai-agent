@@ -2,7 +2,9 @@
 
 services:
   search:
-    build: ./services/search
+    build:
+      context: .
+      dockerfile: services/search/Dockerfile
     ports:
       - "8001:8001"
     env_file: .env
@@ -10,6 +12,9 @@ services:
       - BACKEND_BASE_URL=http://host.docker.internal:9000
       - SEARCH_AGENT_PORT=8001
       - SEARCH_AGENT_HOST=http://search
+    volumes:
+      - ./services/search:/app/services/search
+      - ./shared:/app/shared
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8001/.well-known/agent.json || exit 1"]
       interval: 30s
@@ -18,7 +23,9 @@ services:
       start_period: 30s
 
   stylist:
-    build: ./services/stylist
+    build:
+      context: .
+      dockerfile: services/stylist/Dockerfile
     ports:
       - "8002:8002"
     env_file: .env
@@ -26,6 +33,9 @@ services:
       - BACKEND_BASE_URL=http://host.docker.internal:9000
       - STYLIST_AGENT_PORT=8002
       - STYLIST_AGENT_HOST=http://stylist
+    volumes:
+      - ./services/stylist:/app/services/stylist
+      - ./shared:/app/shared
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8002/.well-known/agent.json || exit 1"]
       interval: 30s
@@ -34,7 +44,9 @@ services:
       start_period: 30s
 
   order:
-    build: ./services/order
+    build:
+      context: .
+      dockerfile: services/order/Dockerfile
     ports:
       - "8003:8003"
     env_file: .env
@@ -42,6 +54,9 @@ services:
       - BACKEND_BASE_URL=http://host.docker.internal:9000
       - ORDER_AGENT_PORT=8003
       - ORDER_AGENT_HOST=http://order
+    volumes:
+      - ./services/order:/app/services/order
+      - ./shared:/app/shared
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8003/.well-known/agent.json || exit 1"]
       interval: 30s
@@ -50,7 +65,9 @@ services:
       start_period: 30s
 
   orchestrator:
-    build: ./services/orchestrator
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
     ports:
       - "8000:8000"
     env_file: .env
@@ -59,6 +76,9 @@ services:
       - ORCHESTRATOR_STYLIST_AGENT_CARD_URL=http://stylist:8002/.well-known/agent.json
       - ORCHESTRATOR_ORDER_AGENT_CARD_URL=http://order:8003/.well-known/agent.json
       - ORCHESTRATOR_PORT=8000
+    volumes:
+      - ./services/orchestrator:/app/services/orchestrator
+      - ./shared:/app/shared
     depends_on:
       search:
         condition: service_healthy

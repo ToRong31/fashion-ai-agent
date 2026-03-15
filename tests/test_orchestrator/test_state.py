@@ -1,4 +1,4 @@
-from agents.orchestrator.state import MasterState
+from services.orchestrator.state import MasterState
 
 
 def test_master_state_creation():

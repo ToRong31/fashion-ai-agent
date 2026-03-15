@@ -1,4 +1,4 @@
-from agents.orchestrator.conversation import ConversationManager
+from services.orchestrator.conversation import ConversationManager
 
 
 def test_add_and_get_messages():

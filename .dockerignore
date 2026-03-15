@@ -1,0 +1,23 @@
+# Docker ignore file for fashion-ai-agent
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.git/
+.gitignore
+.env
+.env.local
+*.md
+docs/
+tests/
+.DS_Store
+*.log
