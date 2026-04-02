@@ -13,5 +13,10 @@ class User(BaseModel):
     preferences: UserPreferences = UserPreferences()
 
 
-class UserProfileUpdate(BaseModel):
-    preferences: UserPreferences
+class Product(BaseModel):
+    id: int
+    name: str
+    description: str
+    price: float
+    stock_quantity: int
+    metadata: dict | None = None
