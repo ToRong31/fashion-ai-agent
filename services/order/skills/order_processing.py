@@ -1,11 +1,20 @@
 """Order Processing Skill - handles cart management, order creation, and payment."""
+from pathlib import Path
+
 import re
 import structlog
+import yaml
 
 from shared.base_agent.skill import Skill, ToolDefinition, ToolResult
 from shared.backend_client import BackendClient
 
 logger = structlog.get_logger()
+
+
+def _load_prompt(filename: str) -> str:
+    yaml_path = Path(__file__).parent / "prompts" / filename
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)["prompt"]
 
 
 # Regex to extract JWT token from message
@@ -244,26 +253,4 @@ class OrderProcessingSkill(Skill):
         BackendClient.clear_context_token()
 
     def get_prompt_instructions(self) -> str:
-        return (
-            "You handle shopping cart and order operations.\n\n"
-            "When a user wants to ADD TO CART (single item):\n"
-            "1. Call add_to_cart with product_id, product_name, and price.\n"
-            "2. Extract user_id from [user_id=X] in the message - this is REQUIRED.\n"
-            "3. Confirm what was added to the cart.\n\n"
-            "When a user wants to ADD ALL or MULTIPLE items to cart:\n"
-            "1. Call add_multiple_to_cart with a list of products.\n"
-            "2. Each product should have: product_id, product_name, price.\n"
-            "3. Extract user_id from [user_id=X] in the message - this is REQUIRED.\n"
-            "4. Confirm how many items were added.\n\n"
-            "IMPORTANT: When user says 'add all', 'add them all', 'add everything', or provides multiple products, \n"
-            "you MUST use add_multiple_to_cart tool - NOT add_to_cart.\n\n"
-            "When a user wants to BUY/ORDER/CHECKOUT:\n"
-            "1. Call create_order with the user's ID and the found product IDs.\n"
-            "2. Call get_payment_link to generate the VNPay payment link.\n"
-            "3. Present the order summary and payment link.\n\n"
-            "CRITICAL: user_id extraction rules:\n"
-            "- Always extract user_id from [user_id=X] in the task message\n"
-            "- Example: 'Add to cart [user_id=5]' → use user_id=5\n"
-            "- The user_id is REQUIRED for all cart operations\n"
-            "NEVER ask the user what they want — execute the task directly."
-        )
+        return _load_prompt("order-processing.yaml")

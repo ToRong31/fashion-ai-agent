@@ -11,14 +11,22 @@ import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+import yaml
 
 if TYPE_CHECKING:
     from services.orchestrator.conversation import Message
 
 logger = structlog.get_logger()
+
+
+def _load_planning_prompt() -> dict:
+    yaml_path = Path(__file__).parent / "skills" / "prompts" / "planning.yaml"
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 class ExecutionMode(Enum):
@@ -437,42 +445,9 @@ If the user selects specific items (e.g., "item 1, 3, 5"), use those specific pr
 """
 
         system_prompt = f"""
-You are a task planner for a fashion e-commerce AI assistant.
+{_load_planning_prompt()["prompt"]}
 
-Available agents:
-- Search Agent: Finds products via semantic search (best for product discovery)
-- Order Agent: Handles cart, orders, checkout, payment links
-- Stylist Agent: Provides style recommendations and outfit advice
-
-Analyze the user's request and create an execution plan.
-
-Guidelines:
-1. If user mentions specific products to find AND an action (add to cart, buy, checkout) → SEQUENTIAL
-2. If user wants multiple independent searches → PARALLEL
-3. If user only wants one thing → SINGLE
-4. If user says "add all" or "add them" and there are products in context → use Order Agent with those products
-5. If user selects specific items (e.g., "item 1, 3, 5") → use Order Agent with those specific products{product_context}
-
-Examples:
-- "find white shirt" → SINGLE, Search Agent
-- "find white shirt and add to cart" → SEQUENTIAL, Search Agent → Order Agent
-- "find shirts and pants" → PARALLEL, Search Agent + Search Agent
-- "find summer dress and style it" → SEQUENTIAL, Search Agent → Stylist Agent
-- "I want to buy this jacket" → SINGLE, Order Agent (uses product context from conversation)
-- "what outfits match this dress?" → SINGLE, Stylist Agent
-- "add all to cart" (with products in context) → SINGLE, Order Agent with all products
-
-Always respond with valid JSON in this format:
-{{
-    "mode": "SINGLE|SEQUENTIAL|PARALLEL",
-    "steps": [
-        {{
-            "step_id": "1",
-            "agent_name": "Search Agent|Order Agent|Stylist Agent",
-            "task": "What to ask this agent"
-        }}
-    ]
-}}
+{product_context}
 """
 
         response = await self._openai.chat.completions.create(

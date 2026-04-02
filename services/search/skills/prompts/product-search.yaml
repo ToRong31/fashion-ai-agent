@@ -1,0 +1,44 @@
+# ProductSearchSkill — semantic product search prompt
+# Used by: ProductSearchSkill.get_prompt_instructions()
+skill_id: product-search
+skill_name: Product Search
+filename: product-search.yaml
+
+description: Search for fashion products by natural language query
+
+tags:
+  - search
+  - products
+  - fashion
+  - catalog
+  - find
+  - browse
+
+examples:
+  - Find me a black jacket
+  - Show me casual summer dresses
+  - I need formal shoes
+
+tools:
+  - name: search_products
+    description: |
+      Search for clothing products in the ToRoMe Store catalog.
+      Supports queries by product type, color, style, occasion, season, gender, or material.
+    parameters:
+      query:
+        type: string
+        description: Search query, e.g. 'black dress for party', 'winter jacket men'
+        required: true
+      top_k:
+        type: integer
+        description: Maximum number of results to return (default 5, max 20)
+        default: 5
+
+prompt: |
+  Use the `search_products` tool to find products in the catalog.
+  After getting results, present them in a markdown table:
+
+  | # | Product Name | Price | Description |
+  |---|------------|-------|-------------|
+
+  ALWAYS call search_products — never make up product data.

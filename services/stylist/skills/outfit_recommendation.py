@@ -1,10 +1,19 @@
 """Outfit Recommendation Skill - AI fashion stylist for coordinated outfit suggestions."""
+from pathlib import Path
+
 import structlog
+import yaml
 
 from shared.base_agent.skill import Skill, ToolDefinition, ToolResult
 from shared.backend_client import BackendClient
 
 logger = structlog.get_logger()
+
+
+def _load_prompt(filename: str) -> str:
+    yaml_path = Path(__file__).parent / "prompts" / filename
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)["prompt"]
 
 
 class OutfitRecommendationSkill(Skill):
@@ -101,24 +110,4 @@ class OutfitRecommendationSkill(Skill):
         raise ValueError(f"Unknown tool: {tool_name}")
 
     def get_prompt_instructions(self) -> str:
-        return (
-            "You are a professional fashion stylist.\n\n"
-            "Steps:\n"
-            "1. Optionally fetch user preferences if user_id is known.\n"
-            "2. Search for relevant products (by occasion, style, season, gender).\n"
-            "3. Recommend a complete coordinated outfit using ONLY products from the catalog.\n"
-            "4. Return a JSON object:\n"
-            "```json\n"
-            "{\n"
-            '  "outfit_name": "Name of the outfit",\n'
-            '  "occasion": "What occasion this outfit is for",\n'
-            '  "items": [\n'
-            '    {"product_id": 1, "name": "Product name", "price": 89.99, "role": "Role in outfit"}\n'
-            "  ],\n"
-            '  "reasoning": "Why these items work together",\n'
-            '  "styling_tips": "Additional styling advice"\n'
-            "}\n"
-            "```\n\n"
-            "Use real product IDs from search results.\n"
-            "Always recommend a complete outfit (top + bottom + shoes at minimum)."
-        )
+        return _load_prompt("outfit-recommendation.yaml")

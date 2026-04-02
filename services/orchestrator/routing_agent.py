@@ -8,9 +8,11 @@ Pattern adapted from the A2A multi-agent sample (host_agent/routing_agent.py):
 """
 import json
 import uuid
+from pathlib import Path
 
 import httpx
 import structlog
+import yaml
 from openai import AsyncOpenAI
 
 from a2a.client import A2ACardResolver
@@ -27,6 +29,12 @@ from shared.config import LLMSettings
 from services.orchestrator.remote_agent_connection import RemoteAgentConnections
 
 logger = structlog.get_logger()
+
+
+def _load_routing_prompt() -> dict:
+    yaml_path = Path(__file__).parent / "skills" / "prompts" / "routing.yaml"
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 class RoutingAgent:
@@ -112,28 +120,13 @@ class RoutingAgent:
     def root_instruction(self, user_id: str | None = None) -> str:
         available_names = list(self.remote_agent_connections.keys())
         user_ctx = f"Current user_id: {user_id}." if user_id else ""
-        return f"""**Role:** You are an expert Routing Delegator for ToRoMe Store, a fashion clothing store.
-Your primary function is to delegate user inquiries to the appropriate specialized remote agents.
-
-{user_ctx}
-
-**Core Directives:**
-- **Task Delegation:** You MUST use the `send_message` function to assign tasks to remote agents. NEVER answer directly.
-- **Contextual Awareness:** Include full conversation context in the task so the remote agent can fulfill the request without needing to ask follow-up questions.
-- **Autonomous Engagement:** Never ask the user for permission before engaging remote agents.
-- **Transparent Communication:** Always present the COMPLETE response from the remote agent to the user. Do NOT summarize, re-interpret, or ask follow-up questions on behalf of the agent.
-- **Tool Reliance:** Strictly rely on `send_message` to address user requests. Do NOT answer from your own knowledge.
-
-**How to choose an agent:**
-Read each agent's skills below. Match the user's intent against each skill's description, tags, and examples.
-Pick the agent whose skill best fits the request.
-
-**Agent Roster (with skills):**
-{self._agents_roster}
-
-**Valid agent names:** {available_names}
-
-**CRITICAL:** You MUST call `send_message` for EVERY user request. Never respond without calling a tool first."""
+        prompt_cfg = _load_routing_prompt()
+        prompt_tpl = prompt_cfg["prompt"]
+        return prompt_tpl.format(
+            user_ctx=user_ctx,
+            agents_roster=self._agents_roster,
+            available_names=available_names,
+        )
 
     # ------------------------------------------------------------------
     # send_message — mirrors sample's send_message tool

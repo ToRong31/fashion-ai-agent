@@ -1,10 +1,19 @@
 """Product Search Skill - semantic vector search over the fashion product catalog."""
+from pathlib import Path
+
 import structlog
+import yaml
 
 from shared.base_agent.skill import Skill, ToolDefinition, ToolResult
 from shared.backend_client import BackendClient
 
 logger = structlog.get_logger()
+
+
+def _load_prompt(filename: str) -> str:
+    yaml_path = Path(__file__).parent / "prompts" / filename
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)["prompt"]
 
 
 class ProductSearchSkill(Skill):
@@ -81,10 +90,4 @@ class ProductSearchSkill(Skill):
         )
 
     def get_prompt_instructions(self) -> str:
-        return (
-            "Use the `search_products` tool to find products in the catalog.\n"
-            "After getting results, present them in a markdown table:\n\n"
-            "| # | Product Name | Price | Description |\n"
-            "|---|------------|-------|-------------|\n\n"
-            "ALWAYS call search_products — never make up product data."
-        )
+        return _load_prompt("product-search.yaml")

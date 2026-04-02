@@ -8,9 +8,11 @@ This skill coordinates multi-agent workflows using tools:
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
+import yaml
 
 from shared.base_agent.skill import Skill, ToolDefinition, ToolResult
 
@@ -34,6 +36,12 @@ from services.orchestrator.tools.history_tool import (
 )
 
 logger = structlog.get_logger()
+
+
+def _load_prompt(filename: str) -> str:
+    yaml_path = Path(__file__).parent / "prompts" / filename
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)["prompt"]
 
 
 class OrchestrationSkill(Skill):
@@ -147,42 +155,4 @@ class OrchestrationSkill(Skill):
     # -------------------------------------------------------------------------
 
     def get_prompt_instructions(self) -> str:
-        return """
-## Orchestration Instructions
-
-You are the Orchestrator for ToRoMe Store AI assistant.
-
-**Your role:** Analyze user requests and coordinate worker agents to fulfill them.
-
-**Available Worker Agents:**
-- **Search Agent**: Semantic product search, finds items by style/color/category
-- **Stylist Agent**: Outfit recommendations, style advice
-- **Order Agent**: Cart management, order creation, checkout, payment links
-
-**Decision Framework:**
-
-1. **Simple single-agent requests** → use `route_to_agent`
-   - "find me black shoes" → route_to_agent with Search Agent
-   - "what outfits match navy?" → route_to_agent with Stylist Agent
-   - "add to cart" → route_to_agent with Order Agent
-
-2. **Multi-step / context-aware requests** → use `plan_and_execute`
-   - "find X and add to cart" → plan_and_execute
-   - "add all to cart" (with previous search results) → plan_and_execute
-   - "item 1, 3, 5 to cart" → plan_and_execute
-   - "continue shopping" → plan_and_execute
-
-3. **Multiple independent searches** → use `plan_and_execute` (PARALLEL mode)
-   - "show me shoes and pants" → plan_and_execute
-
-**Workflow:**
-1. Analyze the user's intent
-2. Choose the appropriate tool
-3. Execute and return the aggregated response
-
-**Important:**
-- ALWAYS use tools, never answer directly from your own knowledge
-- Include user_id in all agent calls when available
-- Pass full context to worker agents (what user wants, any previous products)
-- Present results clearly with all agent responses
-"""
+        return _load_prompt("orchestration.yaml")

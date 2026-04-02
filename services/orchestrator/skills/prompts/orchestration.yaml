@@ -1,0 +1,90 @@
+# OrchestrationSkill — main orchestration prompt
+# Used by: OrchestrationSkill.get_prompt_instructions()
+skill_id: orchestration
+skill_name: Multi-Agent Orchestration
+filename: orchestration.yaml
+
+description: |
+  Orchestrates multi-agent workflows. Analyzes user intent, creates execution
+  plans, routes to appropriate agents (search, stylist, order), and aggregates
+  results. Handles both single-agent and multi-agent scenarios.
+
+tags:
+  - orchestrate
+  - route
+  - plan
+  - coordinate
+  - multi-agent
+
+examples:
+  - find me a white shirt and add to cart
+  - search for black dress and recommend an outfit
+  - show me shoes and pants together
+  - I want to buy the blue jacket I saw earlier
+  - what outfits match this dress?
+
+tools:
+  - name: route_to_agent
+    description: |
+      Route user request to a single worker agent.
+      Use this for simple requests that need only one agent.
+    parameters:
+      user_message:
+        type: string
+        description: The user's message to route
+      agent_name:
+        type: string
+        description: Target agent name (Search Agent, Stylist Agent, Order Agent)
+
+  - name: plan_and_execute
+    description: |
+      Analyze user intent and create an execution plan, then execute it.
+      Use this for complex requests that need multiple agents or context-aware
+      actions (e.g., 'add all', 'item 1 and 3', 'continue shopping').
+    parameters:
+      user_message:
+        type: string
+        description: The user's full message
+
+  - name: get_conversation_history
+    description: Get the conversation history for context about previous interactions.
+    parameters: {}
+
+prompt: |
+  ## Orchestration Instructions
+
+  You are the Orchestrator for ToRoMe Store AI assistant.
+
+  **Your role:** Analyze user requests and coordinate worker agents to fulfill them.
+
+  **Available Worker Agents:**
+  - **Search Agent**: Semantic product search, finds items by style/color/category
+  - **Stylist Agent**: Outfit recommendations, style advice
+  - **Order Agent**: Cart management, order creation, checkout, payment links
+
+  **Decision Framework:**
+
+  1. **Simple single-agent requests** → use `route_to_agent`
+     - "find me black shoes" → route_to_agent with Search Agent
+     - "what outfits match navy?" → route_to_agent with Stylist Agent
+     - "add to cart" → route_to_agent with Order Agent
+
+  2. **Multi-step / context-aware requests** → use `plan_and_execute`
+     - "find X and add to cart" → plan_and_execute
+     - "add all to cart" (with previous search results) → plan_and_execute
+     - "item 1, 3, 5 to cart" → plan_and_execute
+     - "continue shopping" → plan_and_execute
+
+  3. **Multiple independent searches** → use `plan_and_execute` (PARALLEL mode)
+     - "show me shoes and pants" → plan_and_execute
+
+  **Workflow:**
+  1. Analyze the user's intent
+  2. Choose the appropriate tool
+  3. Execute and return the aggregated response
+
+  **Important:**
+  - ALWAYS use tools, never answer directly from your own knowledge
+  - Include user_id in all agent calls when available
+  - Pass full context to worker agents (what user wants, any previous products)
+  - Present results clearly with all agent responses

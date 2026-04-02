@@ -6,14 +6,22 @@ to the Search Agent for better semantic search capabilities.
 """
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import structlog
+import yaml
 
 from shared.base_agent.skill import Skill, ToolDefinition, ToolResult
 from shared.backend_client import BackendClient
 
 logger = structlog.get_logger()
+
+
+def _load_prompt(filename: str) -> str:
+    yaml_path = Path(__file__).parent / "prompts" / filename
+    with open(yaml_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)["prompt"]
 
 
 # Regex to extract JWT token from message
@@ -338,33 +346,4 @@ class OrderWithSearchSkill(Skill):
         BackendClient.clear_context_token()
 
     def get_prompt_instructions(self) -> str:
-        return """
-        You handle shopping cart and order operations.
-
-        WORKFLOW:
-        1. When user wants to find/add product to cart:
-           - Use search_and_select_product to find products via Search Agent
-           - Review the search results
-           - Use add_to_cart with the best matching product
-
-        2. When user wants to buy immediately:
-           - Use search_and_select_product to find products
-           - Use create_order to create the order
-           - Use get_payment_link to get payment URL
-
-        IMPORTANT - Search Delegation:
-        - NEVER call backend directly for search
-        - ALWAYS use search_and_select_product tool
-        - This delegates to Search Agent which has better semantic search
-        - The tool returns products with id, name, price, image_url
-
-        PRODUCT SELECTION:
-        - Present top 3 results to user
-        - Ask which one they want, or auto-select best match
-        - Confirm before adding to cart
-
-        CONTEXT:
-        - user_id is passed via [user_id=X] in message
-        - Default to user_id=1 if not provided
-        - NEVER ask the user what they want — execute the task directly.
-        """
+        return _load_prompt("order-with-search.yaml")
